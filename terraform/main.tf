@@ -24,9 +24,17 @@ resource "aws_security_group" "travel_app_security_group" {
   }
 
   ingress {
-    description = "Allow access to port 3000"
-    from_port   = 3000
-    to_port     = 3000
+    description = "Allow access to port 9100 for node exporter"
+    from_port   = 9100
+    to_port     = 9100
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] 
+  }
+
+  ingress {
+    description = "Allow access to port 9100 for node exporter"
+    from_port   = 9256
+    to_port     = 9256
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"] 
   }
