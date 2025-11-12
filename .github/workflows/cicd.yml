@@ -24,10 +24,10 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: shubhsaini/travel-app:latest
+          tags: shubhsaini/travel-ap:${{ github.sha }}
 
       - name: Verify Pushed image
-        run: docker pull shubhsaini/travel-app:latest
+        run: docker pull shubhsaini/travel-app:${{ github.sha }}
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@master
@@ -36,7 +36,7 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            docker pull shubhsaini/travel-app:latest
+            docker pull shubhsaini/travel-app:${{ github.sha }}
 
             docker stop travel-app || true
             docker rm travel-app || true
@@ -47,7 +47,7 @@ jobs:
               --name travel-app \
               -p 80:3000 \
               --restart unless-stopped \
-              shubhsaini/travel-app:latest
+              shubhsaini/travel-app:${{ github.sha }}
 
             # Show running containers
             docker ps
