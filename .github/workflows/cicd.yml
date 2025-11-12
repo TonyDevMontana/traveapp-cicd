@@ -24,7 +24,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: shubhsaini/travel-ap:${{ github.sha }}
+          tags: shubhsaini/travel-app:${{ github.sha }}
 
       - name: Verify Pushed image
         run: docker pull shubhsaini/travel-app:${{ github.sha }}
