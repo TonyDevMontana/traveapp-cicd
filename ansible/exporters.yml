@@ -1,0 +1,193 @@
+---
+- name: Install Node Exporter and Process Exporter
+  hosts: all
+  become: yes
+  vars:
+    node_exporter_version: '1.8.2'
+    process_exporter_version: '0.8.3'
+    node_exporter_port: 9100
+    process_exporter_port: 9256
+
+  tasks:
+    # ============================================
+    # NODE EXPORTER INSTALLATION
+    # ============================================
+
+    - name: Create node_exporter user
+      user:
+        name: node_exporter
+        shell: /bin/false
+        system: yes
+        create_home: no
+
+    - name: Download Node Exporter
+      get_url:
+        url: 'https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz'
+        dest: /tmp/node_exporter.tar.gz
+        mode: '0644'
+
+    - name: Extract Node Exporter
+      unarchive:
+        src: /tmp/node_exporter.tar.gz
+        dest: /tmp
+        remote_src: yes
+
+    - name: Copy Node Exporter binary to /usr/local/bin
+      copy:
+        src: '/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter'
+        dest: /usr/local/bin/node_exporter
+        owner: node_exporter
+        group: node_exporter
+        mode: '0755'
+        remote_src: yes
+
+    - name: Create Node Exporter systemd service file
+      copy:
+        dest: /etc/systemd/system/node_exporter.service
+        content: |
+          [Unit]
+          Description=Node Exporter
+          Wants=network-online.target
+          After=network-online.target
+
+          [Service]
+          User=node_exporter
+          Group=node_exporter
+          Type=simple
+          ExecStart=/usr/local/bin/node_exporter --web.listen-address=:{{ node_exporter_port }}
+          Restart=on-failure
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: '0644'
+
+    # ============================================
+    # PROCESS EXPORTER INSTALLATION
+    # ============================================
+
+    - name: Create process_exporter user
+      user:
+        name: process_exporter
+        shell: /bin/false
+        system: yes
+        create_home: no
+
+    - name: Download Process Exporter
+      get_url:
+        url: 'https://github.com/ncabatoff/process-exporter/releases/download/v{{ process_exporter_version }}/process-exporter-{{ process_exporter_version }}.linux-amd64.tar.gz'
+        dest: /tmp/process_exporter.tar.gz
+        mode: '0644'
+
+    - name: Extract Process Exporter
+      unarchive:
+        src: /tmp/process_exporter.tar.gz
+        dest: /tmp
+        remote_src: yes
+
+    - name: Copy Process Exporter binary to /usr/local/bin
+      copy:
+        src: '/tmp/process-exporter-{{ process_exporter_version }}.linux-amd64/process-exporter'
+        dest: /usr/local/bin/process-exporter
+        owner: process_exporter
+        group: process_exporter
+        mode: '0755'
+        remote_src: yes
+
+    - name: Create Process Exporter config directory
+      file:
+        path: /etc/process-exporter
+        state: directory
+        owner: process_exporter
+        group: process_exporter
+        mode: '0755'
+
+    - name: Create Process Exporter configuration file
+      copy:
+        dest: /etc/process-exporter/config.yml
+        content: |
+          process_names:
+            # Group processes by their executable name
+            - name: "{{.Comm}}"
+              cmdline:
+              - '.+'
+        owner: process_exporter
+        group: process_exporter
+        mode: '0644'
+
+    - name: Create Process Exporter systemd service file
+      copy:
+        dest: /etc/systemd/system/process_exporter.service
+        content: |
+          [Unit]
+          Description=Process Exporter
+          Wants=network-online.target
+          After=network-online.target
+
+          [Service]
+          User=process_exporter
+          Group=process_exporter
+          Type=simple
+          ExecStart=/usr/local/bin/process-exporter --config.path=/etc/process-exporter/config.yml --web.listen-address=:{{ process_exporter_port }}
+          Restart=on-failure
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: '0644'
+
+    # ============================================
+    # ENABLE AND START SERVICES
+    # ============================================
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start Node Exporter service
+      systemd:
+        name: node_exporter
+        enabled: yes
+        state: started
+
+    - name: Enable and start Process Exporter service
+      systemd:
+        name: process_exporter
+        enabled: yes
+        state: started
+
+    # ============================================
+    # CLEANUP
+    # ============================================
+
+    - name: Clean up temporary files
+      file:
+        path: '{{ item }}'
+        state: absent
+      loop:
+        - /tmp/node_exporter.tar.gz
+        - '/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64'
+        - /tmp/process_exporter.tar.gz
+        - '/tmp/process-exporter-{{ process_exporter_version }}.linux-amd64'
+
+    # ============================================
+    # VERIFICATION
+    # ============================================
+
+    - name: Wait for Node Exporter to be ready
+      wait_for:
+        port: '{{ node_exporter_port }}'
+        timeout: 30
+
+    - name: Wait for Process Exporter to be ready
+      wait_for:
+        port: '{{ process_exporter_port }}'
+        timeout: 30
+
+    - name: Display Node Exporter status
+      debug:
+        msg: 'Node Exporter is running on port {{ node_exporter_port }}'
+
+    - name: Display Process Exporter status
+      debug:
+        msg: 'Process Exporter is running on port {{ process_exporter_port }}'
